@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Storage_Example</string>
+    <string name="private_album">Private</string>
 </resources>

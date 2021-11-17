@@ -7,29 +7,43 @@
     tools:context=".MainActivity">
 
     <androidx.core.widget.NestedScrollView
-        android:id="@+id/nestedScroll"
+        android:id="@+id/nestedScrollView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        app:layout_constraintTop_toBottomOf="@id/switchMaterial_private"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintHorizontal_bias="0.5"
-        app:layout_constraintTop_toTopOf="parent"
         android:layout_marginHorizontal="8dp"
         android:layout_marginTop="8dp"
-        android:fillViewport="true">
+        android:fillViewport="true"
+        app:layout_constraintBottom_toTopOf="@+id/switchPrivate"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.5"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
 
 
     </androidx.core.widget.NestedScrollView>
 
     <com.google.android.material.switchmaterial.SwitchMaterial
-        android:id="@+id/switchMaterial_private"
+        android:id="@+id/switchPrivate"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:text="@string/private_album"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.5"
-        app:layout_constraintTop_toBottomOf="@id/nestedScroll"/>
+        app:layout_constraintStart_toEndOf="@+id/btnTakePhoto"
+        app:layout_constraintTop_toBottomOf="@+id/nestedScrollView" />
 
-
+    <ImageView
+        android:id="@+id/btnTakePhoto"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintBottom_toBottomOf="@+id/switchPrivate"
+        app:layout_constraintEnd_toStartOf="@+id/switchPrivate"
+        app:layout_constraintHorizontal_bias="0.5"
+        app:layout_constraintHorizontal_chainStyle="spread"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/switchPrivate"
+        app:srcCompat="@drawable/photo_img" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
