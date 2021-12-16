@@ -3,7 +3,7 @@ package com.kdw.storage_example
 import android.net.Uri
 
 data class ExternalData(
-    val id: Int,
+    val id: Long,
     val contentUri: Uri,
     val name: String,
     val width: Int,

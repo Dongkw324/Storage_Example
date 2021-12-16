@@ -1,6 +1,7 @@
 package com.kdw.storage_example
 
 import android.Manifest
+import android.content.ContentUris
 import android.content.pm.PackageManager
 import android.database.ContentObserver
 import android.graphics.BitmapFactory
@@ -8,6 +9,7 @@ import android.net.Uri
 import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.provider.MediaStore
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.IntentSenderRequest
@@ -20,6 +22,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+
+// 참조 : https://github.com/philipplackner/AndroidStorage
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
@@ -59,6 +63,8 @@ class MainActivity : AppCompatActivity() {
             // 맨 처음 실행되는 함수
             // 권한 요청 업데이트 함수
             updateOrRequestPermission()
+
+            initContentObserver()
         }
 
 
@@ -96,6 +102,23 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun initContentObserver() {
+        contentObserver = object: ContentObserver(null) {
+            override fun onChange(selfChange: Boolean) {
+                super.onChange(selfChange)
+                if(readPermission) {
+                    loadExternalStorageIntoRecyclerView()
+                }
+            }
+        }
+        contentResolver.registerContentObserver(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            true,
+            contentObserver
+        )
+    }
+
+
     private fun loadInternalStorageIntoRecyclerView() {
        // lifecycle 객체 대상(Activity, Fragment, Service 등등), lifecycle 이 끝나면 코루틴 작업이 자동으로 취소됨
         lifecycleScope.launch {
@@ -119,5 +142,54 @@ class MainActivity : AppCompatActivity() {
                 InternalData(it.name, bmp)
             } ?: listOf()
         } // 결과 값을 반환할 때까지 기다린다. (await+async)
+    }
+
+    private fun loadExternalStorageIntoRecyclerView() {
+        lifecycleScope.launch {
+            val photoItems = loadPhotoFromExternalStorage()
+            externalPhotoAdapter.submitList(photoItems)
+        }
+    }
+
+    private suspend fun loadPhotoFromExternalStorage() : List<ExternalData> {
+        return withContext(Dispatchers.IO) {
+            val collection = sdk29Up {
+                MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
+            } ?: MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+
+            val projection = arrayOf(
+                MediaStore.Images.Media._ID,
+                MediaStore.Images.Media.DISPLAY_NAME,
+                MediaStore.Images.Media.WIDTH,
+                MediaStore.Images.Media.HEIGHT
+            )
+            val photos = mutableListOf<ExternalData>()
+
+            contentResolver.query(
+                collection,
+                projection,
+                null,
+                null,
+                "${MediaStore.Images.Media.DISPLAY_NAME} ASC"
+            )?.use { cursor ->
+                val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
+                val displayNameColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME)
+                val widthColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.WIDTH)
+                val heightColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.HEIGHT)
+
+                while(cursor.moveToNext()) {
+                    val id = cursor.getLong(idColumn)
+                    val displayName = cursor.getString(displayNameColumn)
+                    val width = cursor.getInt(widthColumn)
+                    val height = cursor.getInt(heightColumn)
+                    val contentUri = ContentUris.withAppendedId(
+                        MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                        id
+                    )
+                    photos.add(ExternalData(id, contentUri, displayName, width, height))
+                }
+                photos.toList()
+            }
+        } ?: listOf()
     }
 }
