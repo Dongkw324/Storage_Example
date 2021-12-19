@@ -119,6 +119,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun initContentObserver() {
+        // 다른 Application 에서 미디어(이미지, 동영상 또는 파일) 추가/삭제 여부 감지하기 위해 ContentObserver 사용
         contentObserver = object: ContentObserver(null) {
             override fun onChange(selfChange: Boolean) {
                 super.onChange(selfChange)
@@ -127,6 +128,8 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+        // URI : observe 할 Uri, boolean 값은 해당 Uri만 할 것인지, Uri 자손의 변화까지 감지할 것인지 설정
+        // 마지막 인자는 변경되었을 때 호출될 observer
         contentResolver.registerContentObserver(
             MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
             true,
@@ -232,5 +235,11 @@ class MainActivity : AppCompatActivity() {
                 photos.toList()
             }
         } ?: listOf()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // unregister
+        contentResolver.unregisterContentObserver(contentObserver)
     }
 }
