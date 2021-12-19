@@ -1,6 +1,7 @@
 package com.kdw.storage_example
 
 import android.Manifest
+import android.app.RecoverableSecurityException
 import android.content.ContentUris
 import android.content.pm.PackageManager
 import android.database.ContentObserver
@@ -49,15 +50,30 @@ class MainActivity : AppCompatActivity() {
         // 즉시 실행되지는 않고 어떤 함수가 launch (실행) 시켰을 경우에만 실행된다.
         permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
             // 사용자에게 부여할 읽기 권한 지정
-            readPermission = permissions[Manifest.permission.READ_EXTERNAL_STORAGE] ?: readPermission
+            readPermission =
+                permissions[Manifest.permission.READ_EXTERNAL_STORAGE] ?: readPermission
             // 사용자에게 부여할 쓰기 권한 지정
-            writePermission = permissions[Manifest.permission.WRITE_EXTERNAL_STORAGE] ?: writePermission
+            writePermission =
+                permissions[Manifest.permission.WRITE_EXTERNAL_STORAGE] ?: writePermission
 
             //만일 읽기 권한이 있다면 내부 저장소의 이미지 파일들을 recyclerView 로 나타낸다.
-            if(readPermission) {
+            if (readPermission) {
                 loadInternalStorageIntoRecyclerView()
             } else { // 읽기 권한이 없다면 권한 없다는 사실을 메시지 띄워 알림
                 Toast.makeText(this@MainActivity, "권한 허용 안됨", Toast.LENGTH_SHORT).show()
+            }
+
+            intentSenderLauncher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
+                if(it.resultCode == RESULT_OK) {
+                    if(Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) {
+                        lifecycleScope.launch {
+                            deletePhotoFromExternal(deletedImageUri ?: return@launch)
+                        }
+                        Toast.makeText(this@MainActivity, "사진 삭제 완료", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(this@MainActivity, "사진 삭제 불가능", Toast.LENGTH_SHORT).show()
+                    }
+                }
             }
 
             // 맨 처음 실행되는 함수
@@ -65,9 +81,9 @@ class MainActivity : AppCompatActivity() {
             updateOrRequestPermission()
 
             initContentObserver()
+
+
         }
-
-
     }
 
     private fun updateOrRequestPermission() {
@@ -116,6 +132,31 @@ class MainActivity : AppCompatActivity() {
             true,
             contentObserver
         )
+    }
+
+    private suspend fun deletePhotoFromExternal(photoUri: Uri) {
+        withContext(Dispatchers.IO) {
+            try{
+                contentResolver.delete(photoUri, null, null)
+            } catch(e: SecurityException) {
+                val intentSender = when {
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> {
+                        MediaStore.createDeleteRequest(contentResolver, listOf(photoUri)).intentSender
+                    }
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> {
+                        val recoverableSecurityException = e as? RecoverableSecurityException
+                        recoverableSecurityException?.userAction?.actionIntent?.intentSender
+                    }
+                    else -> null
+                }
+
+                intentSender?.let {
+                    intentSenderLauncher.launch(
+                        IntentSenderRequest.Builder(it).build()
+                    )
+                }
+            }
+        }
     }
 
 
