@@ -1,10 +1,13 @@
 package com.kdw.storage_example
 
 import android.Manifest
+import android.app.Activity
 import android.app.RecoverableSecurityException
 import android.content.ContentUris
+import android.content.ContentValues
 import android.content.pm.PackageManager
 import android.database.ContentObserver
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
@@ -15,6 +18,7 @@ import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.launch
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.snackbar.Snackbar
@@ -22,8 +26,12 @@ import com.kdw.storage_example.databinding.ActivityMainBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.IOException
+import java.lang.Exception
+import java.util.*
 
 
+// https://codechacha.com/ko/android-mediastore-insert-media-files/
 // 참조 : https://github.com/philipplackner/AndroidStorage
 class MainActivity : AppCompatActivity() {
 
@@ -45,6 +53,12 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        internalPhotoAdapter = InternalPhotoAdapter {
+            lifecycleScope.launch {
+
+            }
+        }
 
         // 사용자의 응답을 처리하는 권한 콜백 등록, 복수 권한 요청하는 registerForActivityResult 콜백 함수
         // 즉시 실행되지는 않고 어떤 함수가 launch (실행) 시켰을 경우에만 실행된다.
@@ -74,6 +88,30 @@ class MainActivity : AppCompatActivity() {
                         Toast.makeText(this@MainActivity, "사진 삭제 불가능", Toast.LENGTH_SHORT).show()
                     }
                 }
+            }
+
+            val takePhotos = registerForActivityResult(ActivityResultContracts.TakePicturePreview()) {
+                lifecycleScope.launch {
+                    val isPrivate = binding.switchPrivate.isChecked
+                    val isSaved = when {
+                        isPrivate -> savePhotoToInternal(UUID.randomUUID().toString(), it!!)
+                        writePermission -> savePhotoToExternal(UUID.randomUUID().toString(), it!!)
+                        else -> false
+                    }
+
+                    if(isPrivate)
+                        loadInternalStorageIntoRecyclerView()
+
+                    if(isSaved) {
+                        Toast.makeText(this@MainActivity, "사진 저장 성공", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(this@MainActivity, "사진 저장 실패", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+
+            binding.btnTakePhoto.setOnClickListener {
+                takePhotos.launch()
             }
 
             // 맨 처음 실행되는 함수
@@ -135,6 +173,62 @@ class MainActivity : AppCompatActivity() {
             true,
             contentObserver
         )
+    }
+
+    private suspend fun savePhotoToExternal(displayName: String, bmp: Bitmap) : Boolean {
+        return withContext(Dispatchers.IO) {
+            val galleryCollection = sdk29Up {
+                MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+            } ?: MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+
+            val contentValues = ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, "$displayName.jpg")
+                put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                put(MediaStore.Images.Media.WIDTH, bmp.width)
+                put(MediaStore.Images.Media.HEIGHT, bmp.height)
+            }
+
+            try {
+                contentResolver.insert(galleryCollection, contentValues)?.also { uri ->
+                    contentResolver.openOutputStream(uri).use { outputStream ->
+                        if(!bmp.compress(Bitmap.CompressFormat.JPEG, 95, outputStream)) {
+                            throw IOException("bitmap 저장 불가능")
+                        }
+                    }
+                } ?: throw IOException("MediaStore entry 생성 불가능")
+                true
+            } catch (e: IOException) {
+                e.printStackTrace()
+                false
+            }
+        }
+    }
+
+    private suspend fun savePhotoToInternal(fileName: String, bmp: Bitmap) : Boolean {
+        return withContext(Dispatchers.IO) {
+            try{
+                openFileOutput("$fileName.jpg", MODE_PRIVATE).use { stream ->
+                    if(!bmp.compress(Bitmap.CompressFormat.JPEG, 95, stream)) {
+                        throw IOException("bitmap 저장 불가능")
+                    }
+                }
+                true
+            } catch (e: IOException) {
+                e.printStackTrace()
+                false
+            }
+        }
+    }
+
+    private suspend fun deletePhotoFromInternal(fileName: String): Boolean{
+        return withContext(Dispatchers.IO) {
+            try{
+                deleteFile(fileName)
+            } catch(e: Exception) {
+                e.printStackTrace()
+                false
+            }
+        }
     }
 
     private suspend fun deletePhotoFromExternal(photoUri: Uri) {
