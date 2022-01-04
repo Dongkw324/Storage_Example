@@ -56,7 +56,20 @@ class MainActivity : AppCompatActivity() {
 
         internalPhotoAdapter = InternalPhotoAdapter {
             lifecycleScope.launch {
+                val isDeleted = deletePhotoFromInternal(it.name)
+                if(isDeleted) {
+                    loadInternalStorageIntoRecyclerView()
+                    Toast.makeText(this@MainActivity, "사진 삭제 완료", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this@MainActivity, "사진 삭제 실패", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
 
+        externalPhotoAdapter = ExternalPhotoAdapter {
+            lifecycleScope.launch {
+                deletePhotoFromExternal(it.contentUri)
+                deletedImageUri = it.contentUri
             }
         }
 
